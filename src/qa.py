@@ -108,11 +108,13 @@ def process_grp(ele, agree_size, disagree_size, disagree_type):
     question = ele['question'] 
     if agree_size + disagree_size > 0:
         question += f"# Other's Response:\n"
+
+    
+    if disagree_size > 0:
+        question += f"{disagree_size} agents think the answer is {R_n}.\n"
     
     if agree_size > 0:
         question += f"{agree_size} agents think the answer is {R_p}.\n"
-    if disagree_size > 0:
-        question += f"{disagree_size} agents think the answer is {R_n}.\n"
 
     
     choices = ele['options']
