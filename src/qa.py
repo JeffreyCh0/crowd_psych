@@ -8,6 +8,7 @@ import multiprocess as mp
 from tqdm import tqdm
 import random
 import pickle
+from copy import deepcopy
 
 if sys.platform == "darwin":  # macOS check
     mp.set_start_method("spawn", force=True)
@@ -107,10 +108,11 @@ def process_grp(ele, agree_size, disagree_size, disagree_type):
     question = ele['question'] 
     if agree_size + disagree_size > 0:
         question += f"# Other's Response:\n"
+    
     if agree_size > 0:
-        question += f"{agree_size} agents think the answer is {R_p}."
+        question += f"{agree_size} agents think the answer is {R_p}.\n"
     if disagree_size > 0:
-        question += f"{disagree_size} agents think the answer is {R_n}."
+        question += f"{disagree_size} agents think the answer is {R_n}.\n"
 
     
     choices = ele['options']
@@ -127,9 +129,10 @@ def process_grp(ele, agree_size, disagree_size, disagree_type):
     ele['disagree_type'] = disagree_type
     return ele  # Return updated sample
 
-def mmlu_eval(mmlu_samples, eval_feat, num_workers=mp.cpu_count()):
+def mmlu_eval(mmlu_input, eval_feat, num_workers=mp.cpu_count()):
     """Evaluate MMLU samples using multiprocess for parallel execution with tqdm."""
     eval_type = eval_feat['type']
+    mmlu_samples = deepcopy(mmlu_input)
 
     if eval_type == 'org':
         func = process_org
@@ -150,7 +153,7 @@ def mmlu_eval(mmlu_samples, eval_feat, num_workers=mp.cpu_count()):
     else:
         print(f"Eval Type:{eval_type}, Accuracy: {accuracy}")
     
-    with open(f"../data/mmlu_{agree_size}_{disagree_size}_{disagree_type}.pkl", "wb") as f:
+    with open(f"../data/group_da/mmlu_{agree_size}_{disagree_size}_{disagree_type}.pkl", "wb") as f:
         pickle.dump(results, f)
     return results  # Return processed samples
 
