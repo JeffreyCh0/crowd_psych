@@ -157,7 +157,7 @@ def mmlu_eval(mmlu_input, eval_feat, num_workers=mp.cpu_count()):
     
     with open(f"../data/group_da/mmlu_{agree_size}_{disagree_size}_{disagree_type}.pkl", "wb") as f:
         pickle.dump(results, f)
-    return results  # Return processed samples
+    return results, accuracy  # Return processed samples
 
 
 

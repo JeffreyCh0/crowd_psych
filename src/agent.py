@@ -2,6 +2,8 @@ from openai import OpenAI
 import os
 import json
 import numpy as np
+from dotenv import load_dotenv
+load_dotenv()
 
 
 available_models = {
