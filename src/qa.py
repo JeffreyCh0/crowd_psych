@@ -113,11 +113,12 @@ def process_grp_count(args):
     if agree_size + disagree_size > 0:
         question += f"# Other's Response:\n"
 
+    if agree_size > 0:
+        question += f"{agree_size} agents think the answer is {R_p}.\n"
+
     if disagree_size > 0:
         question += f"{disagree_size} agents think the answer is {R_n}.\n"
 
-    if agree_size > 0:
-        question += f"{agree_size} agents think the answer is {R_p}.\n"
     
     choices = ele['options']
     pred, prob, topk = QA(question, choices)
@@ -215,7 +216,7 @@ def mmlu_eval(mmlu_input, input_feat_list, num_workers=mp.cpu_count()):
     for row in results:
         row_acc = []
         for eles in row:
-            row_acc.append(round(sum([ele['r'] == ele['answer'] for ele in eles])/len(eles),3))
+            row_acc.append(sum([ele['r'] == ele['answer'] for ele in eles])/len(eles))
         accuracy.append(row_acc)
     accuracy = np.array(accuracy)
 
