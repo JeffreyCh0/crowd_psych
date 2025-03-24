@@ -46,11 +46,11 @@ def QA(question:str, choices:list):
     top_prob_list = [(x.token, round(np.exp(x.logprob), 4)) for x in list(response_logprobs[3].top_logprobs)][:len(choices)]
     return response, top_prob, top_prob_list
 
-def process_org(ele):
+def process_org(input_ele):
     # Process a single MMLU sample.
     # takes mmlu data as input
     # output is _org data
-
+    ele = deepcopy(input_ele)
     question = ele['question']
     choices = ele['options']
     pred, prob, topk = QA(question, choices)
@@ -174,7 +174,7 @@ def process_grp_ratio(args):
     ele['disagree_type'] = disagree_type
     return ele  # Return updated sample
 
-def mmlu_eval(mmlu_input, input_feat_list, num_workers=mp.cpu_count()):
+def mmlu_eval_matrix(mmlu_input, input_feat_list, num_workers=mp.cpu_count()):
     """Evaluate MMLU samples using multiprocess for parallel execution with tqdm."""
     input_list = []
     nrows = len(input_feat_list)
@@ -184,10 +184,7 @@ def mmlu_eval(mmlu_input, input_feat_list, num_workers=mp.cpu_count()):
         for eval_feat in row:
             eval_type = eval_feat['type']
 
-            if eval_type == 'org':
-                func = process_org
-                input_list.extend(mmlu_input)
-            elif eval_type == 'grp_count':
+            if eval_type == 'grp_count':
                 func = process_grp_count
                 agree_size = eval_feat['agree_size']
                 disagree_size = eval_feat['disagree_size']
@@ -224,5 +221,9 @@ def mmlu_eval(mmlu_input, input_feat_list, num_workers=mp.cpu_count()):
     #     pickle.dump(results, f)
     return results, accuracy  # Return processed samples
 
-
+def mmlu_eval_org(mmlu_input, num_workers = mp.cpu_count()):
+    with mp.Pool(num_workers) as pool:
+        results = list(tqdm(pool.imap(process_org, mmlu_input), total=len(mmlu_input), desc="Processing MMLU"))
+    return results
+    
 
