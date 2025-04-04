@@ -205,13 +205,13 @@ def process_grp_discrete(args):
         R_n = prev_topk[1][0]
         p_R_n = prev_topk[1][1]
 
+    agent_ids = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
     question = ele['question'] 
     agree_size = len(agree_reasons)
     disagree_size = len(disagree_reasons)
     total_size = agree_size + disagree_size
     if total_size > 0:
         question += f"# Other's Response:\n"
-        agent_ids = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 
     if order == "ad":
         if agree_size > 0:
