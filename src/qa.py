@@ -319,8 +319,11 @@ def mmlu_eval_matrix(mmlu_input, input_feat_list, num_workers=mp.cpu_count()):
         accuracy.append(row_acc)
     accuracy = np.array(accuracy)
 
-    # with open(f"../data/group_da/mmlu_{disagree_type}.pkl", "wb") as f:
-    #     pickle.dump(results, f)
+    results = {
+        'metadata': eval_feat,
+        'data': results,
+    }
+
     return results, accuracy  # Return processed samples
 
 def mmlu_eval_org(mmlu_input, num_workers = mp.cpu_count()):
