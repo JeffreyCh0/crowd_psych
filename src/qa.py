@@ -78,7 +78,7 @@ def generate_reason(args):
     response_format={
         "type": "json_schema",
         "json_schema": {
-        "name": "Explanation of the answer",
+        "name": "Explanation",
         "strict": True,
         "schema": {
             "type": "object",
@@ -96,7 +96,7 @@ def generate_reason(args):
         }
     }
     reason_json = qa_agent.get_response(response_format = response_format, temperature = 1)
-    reason = json.loads(reason_json)["response"]
+    reason = reason_json["response"]
     return reason
 
 def process_org(input_ele):
@@ -395,9 +395,9 @@ def qa_eval_one(qa_input, disagree_type, num_workers = mp.cpu_count()):
     
 def qa_generate_reason(qa_input, disagree_type, num_peers, num_workers = mp.cpu_count()):
     task_list = [(input_ele, "1st") for input_ele in qa_input]*num_peers
-    task_list += [(input_ele, disagree_type) for input_ele in qa_input]*num_peers
+    task_list.extend([(input_ele, disagree_type) for input_ele in qa_input]*num_peers)
     with mp.Pool(num_workers) as pool:
-        results = list(tqdm(pool.imap(generate_reason, task_list), total=len(qa_input), desc="Generating reasons"))
+        results = list(tqdm(pool.imap(generate_reason, task_list), total=len(qa_input)*num_peers*2, desc="Generating reasons"))
     agree_reasons = results[:len(qa_input)*num_peers]
     disagree_reasons = results[len(qa_input)*num_peers:]
     agree_dict = {}
@@ -414,4 +414,4 @@ def qa_generate_reason(qa_input, disagree_type, num_peers, num_workers = mp.cpu_
             ele['disagree_reasons'].append(disagree_dict[peer_id][ele_id])
         ele['disagree_type'] = disagree_type
 
-    return results
+    return ele
