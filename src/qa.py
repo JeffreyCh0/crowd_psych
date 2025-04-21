@@ -220,7 +220,7 @@ def process_grp_ratio(args):
     str_agree_ratio = str(round((1-disagree_ratio)*100))
 
     question = ele['question'] 
-    question += f"\n# Other's Response:\n"
+    question += f"\n# Others' Response:\n"
     question += f"Among {group_size} agents,\n"
     if order == "ad":
         question += f"{str_agree_ratio}% think the answer is {R_p}.\n"
@@ -272,7 +272,7 @@ def process_grp_discrete(args):
         agree_reasons = [''] * agree_size
         disagree_reasons = [''] * disagree_size
     if total_size > 0:
-        question += f"\n# Other's Response:\n"
+        question += f"\n# Others' Response:\n"
 
     if order == "ad":
         if agree_size > 0:
@@ -356,6 +356,52 @@ def process_grp_education(args):
     choices = ele['options']
     pred, prob, topk = QA(question, choices)
     ele['edu'] = education
+    ele['r_j'] = r_j
+    ele['p_r_j'] = p_r_j
+    ele['r'] = pred
+    ele['p_r'] = prob
+    ele['topk'] = topk
+    
+    return ele 
+
+def process_grp_domain(args):
+    input_ele, in_domain, disagree_type = args
+    ele = deepcopy(input_ele)
+
+    if disagree_type == 'rnd':
+        prev_topk = ele['topk^org']
+        prev_r = ele['r^org']
+        r_j_pool = [x for x in prev_topk if x[0] != prev_r]
+        r_j_tuple = random.Random(0).choice(r_j_pool)
+        r_j = r_j_tuple[0]
+        p_r_j = r_j_tuple[1]
+    elif disagree_type == '1st':
+        r_j = ele['r^org']
+        p_r_j = ele['p_r^org']
+    elif disagree_type == '2nd':
+        prev_topk = ele['topk^org']
+        r_j = prev_topk[1][0]
+        p_r_j = prev_topk[1][1]
+    elif disagree_type == 'lst':
+        prev_topk = ele['topk^org']
+        r_j = prev_topk[-1][0]
+        p_r_j = prev_topk[-1][1]
+    else:
+        raise ValueError("disagree_type must be either 'rnd', '1st', '2nd' or 'lst'")
+    
+    set_domain = set(['math', 'engineering', 'physics', 'computer science', 'chemistry', 'psychology', 'law', 'economics', 'philosophy', 'history', 'biology', 'other', 'business', 'health'])
+    if in_domain:
+        domain = ele["category"]
+    else:
+        q_id = ele['question_id']
+        domain = random.Random(q_id).choice(list(set_domain - set([ele["category"]])))
+
+    question = ele['question']
+    question += f"\n# Other's Response:\n"
+    question += f"Agent A is an expert in {domain} domain. Agent A thinks the answer is {r_j}.\n"
+    choices = ele['options']
+    pred, prob, topk = QA(question, choices)
+    ele['domain'] = domain
     ele['r_j'] = r_j
     ele['p_r_j'] = p_r_j
     ele['r'] = pred
@@ -476,4 +522,22 @@ def qa_eval_education(qa_input, disagree_type, num_workers = mp.cpu_count()):
         for ele in results:
             if ele['edu'] == education:
                 dict_results[education].append(ele)
+    return dict_results
+
+def qa_eval_domain(qa_input, disagree_type, num_workers = mp.cpu_count()):
+    input_list = []
+    for in_domain in [False, True]:
+        input_list.extend([(input_ele, in_domain, disagree_type) for input_ele in qa_input])
+    with mp.Pool(num_workers) as pool:
+        results = list(tqdm(pool.imap(process_grp_domain, input_list), total=len(input_list), desc="Processing QA"))
+
+    # deflatten the results back to the original shape
+    dict_results = {}
+    for in_domain in ['in_domain', 'out_domain']:
+        dict_results[in_domain] = []
+    for ele in results:
+        if ele['domain'] == ele['category']:
+            dict_results['in_domain'].append(ele)
+        else:
+            dict_results['out_domain'].append(ele)
     return dict_results
