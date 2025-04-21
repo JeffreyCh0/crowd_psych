@@ -33,17 +33,19 @@ def plot_from_file(PATH, metric, title = None, vlimit = None):
     d_type = results_metadata['type']
     order = results_metadata['order']
 
-    if d_type == "grp_count" or d_type == "grp_disc" or d_type == "grp_list":
+    if d_type == "grp_count" or d_type == "grp_disc" or d_type == "grp_list" or d_type == "grp_ratio":
         row_labels = [str(x) for x in range(11)]
         col_labels = [str(x) for x in range(11)]
         x_label = "# of Agree"
         y_label = "# of Disagree"
-    elif d_type == "group_ratio":
+    elif d_type == "group_ratio_old":
         row_labels = [4,12,50,100,1000]
         col_labels = ['0%', '25%', '50%', '75%', '100%']
         x_label = "% of Agree"
         y_label = "# of Peer"
         title = "Heatmap of Agreement Ratio"
+    else:
+        raise ValueError(f"Unknown peer type: {d_type}")
 
     if not title:
         if order == "ad":
