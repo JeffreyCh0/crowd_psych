@@ -33,7 +33,7 @@ def plot_from_file(PATH, metric, title = None, vlimit = None):
     d_type = results_metadata['type']
     order = results_metadata['order']
 
-    if d_type == "grp_count" or d_type == "grp_disc":
+    if d_type == "grp_count" or d_type == "grp_disc" or d_type == "grp_list":
         row_labels = [str(x) for x in range(11)]
         col_labels = [str(x) for x in range(11)]
         x_label = "# of Agree"
