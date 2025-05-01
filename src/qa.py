@@ -170,28 +170,28 @@ def process_grp_count(args):
     if agree_size + disagree_size > 0:
         question += f"\n# Others' Response:\n"
 
-    if order == "ad":
-        if agree_size > 0:
-            plural = "s" if agree_size > 1 else ""
-            s = "s" if agree_size == 1 else ""
-            question += f"{agree_size} agent{plural} think{s} the answer is {R_p}.\n"
+        if order == "ad":
+            if agree_size > 0:
+                plural = "s" if agree_size > 1 else ""
+                s = "s" if agree_size == 1 else ""
+                question += f"{agree_size} agent{plural} think{s} the answer is {R_p}.\n"
 
-        if disagree_size > 0:
-            plural = "s" if disagree_size > 1 else ""
-            s = "s" if disagree_size == 1 else ""
-            question += f"{disagree_size} agent{plural} think{s} the answer is {R_n}.\n"
-    elif order == "da":
-        if disagree_size > 0:
-            plural = "s" if disagree_size > 1 else ""
-            s = "s" if disagree_size == 1 else ""
-            question += f"{disagree_size} agent{plural} think{s} the answer is {R_n}.\n"
+            if disagree_size > 0:
+                plural = "s" if disagree_size > 1 else ""
+                s = "s" if disagree_size == 1 else ""
+                question += f"{disagree_size} agent{plural} think{s} the answer is {R_n}.\n"
+        elif order == "da":
+            if disagree_size > 0:
+                plural = "s" if disagree_size > 1 else ""
+                s = "s" if disagree_size == 1 else ""
+                question += f"{disagree_size} agent{plural} think{s} the answer is {R_n}.\n"
 
-        if agree_size > 0:
-            plural = "s" if agree_size > 1 else ""
-            s = "s" if agree_size == 1 else ""
-            question += f"{agree_size} agent{plural} think{s} the answer is {R_p}.\n"
-    else:
-        raise ValueError("order must be either 'ad' or 'da'")
+            if agree_size > 0:
+                plural = "s" if agree_size > 1 else ""
+                s = "s" if agree_size == 1 else ""
+                question += f"{agree_size} agent{plural} think{s} the answer is {R_p}.\n"
+        else:
+            raise ValueError("order must be either 'ad' or 'da'")
 
     
     choices = ele['options']
@@ -279,8 +279,9 @@ def process_grp_ratio(args):
     str_disagree_ratio = str(round(disagree_ratio*100))
 
     question = ele['question'] 
-    question += f"\n# Others' Response:\n"
+    
     if group_size > 0:
+        question += f"\n# Others' Response:\n"
         question += f"Among {group_size} agents,\n"
         if order == "ad":
             question += f"{str_agree_ratio}% think the answer is {R_p}.\n"
@@ -334,40 +335,40 @@ def process_grp_discrete(args):
     if total_size > 0:
         question += f"\n# Others' Response:\n"
 
-    if order == "ad":
-        if agree_size > 0:
-            for r_id, reason in enumerate(agree_reasons):
-                question += f"Agent {agent_ids[r_id]} thinks the answer is {R_p}"
-            if len(reason) > 0:
-                question += f", because {reason}.\n"
-            else:
-                question += f".\n"
-        agent_ids = agent_ids[agree_size:]
-        if disagree_size > 0:
-            for r_id, reason in enumerate(disagree_reasons):
-                question += f"Agent {agent_ids[r_id]} thinks the answer is {R_n}"
-            if len(reason) > 0:
-                question += f", because {reason}.\n"
-            else:
-                question += f".\n"
-    elif order == "da":
-        if disagree_size > 0:
-            for r_id, reason in enumerate(disagree_reasons):
-                question += f"Agent {agent_ids[r_id]} thinks the answer is {R_n}"
-            if len(reason) > 0:
-                question += f", because {reason}.\n"
-            else:
-                question += f".\n"
-        agent_ids = agent_ids[agree_size:]
-        if agree_size > 0:
-            for r_id, reason in enumerate(agree_reasons):
-                question += f"Agent {agent_ids[r_id]} thinks the answer is {R_p}"
-            if len(reason) > 0:
-                question += f", because {reason}.\n"
-            else:
-                question += f".\n"
-    else:
-        raise ValueError("order must be either 'ad' or 'da'")
+        if order == "ad":
+            if agree_size > 0:
+                for r_id, reason in enumerate(agree_reasons):
+                    question += f"Agent {agent_ids[r_id]} thinks the answer is {R_p}"
+                if len(reason) > 0:
+                    question += f", because {reason}.\n"
+                else:
+                    question += f".\n"
+            agent_ids = agent_ids[agree_size:]
+            if disagree_size > 0:
+                for r_id, reason in enumerate(disagree_reasons):
+                    question += f"Agent {agent_ids[r_id]} thinks the answer is {R_n}"
+                if len(reason) > 0:
+                    question += f", because {reason}.\n"
+                else:
+                    question += f".\n"
+        elif order == "da":
+            if disagree_size > 0:
+                for r_id, reason in enumerate(disagree_reasons):
+                    question += f"Agent {agent_ids[r_id]} thinks the answer is {R_n}"
+                if len(reason) > 0:
+                    question += f", because {reason}.\n"
+                else:
+                    question += f".\n"
+            agent_ids = agent_ids[agree_size:]
+            if agree_size > 0:
+                for r_id, reason in enumerate(agree_reasons):
+                    question += f"Agent {agent_ids[r_id]} thinks the answer is {R_p}"
+                if len(reason) > 0:
+                    question += f", because {reason}.\n"
+                else:
+                    question += f".\n"
+        else:
+            raise ValueError("order must be either 'ad' or 'da'")
 
     
     choices = ele['options']
