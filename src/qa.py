@@ -517,7 +517,11 @@ def process_one_domain(args):
     else:
         raise ValueError("disagree_type must be either 'rnd', '1st', '2nd' or 'lst'")
     
-    set_domain = set(['math', 'engineering', 'physics', 'computer science', 'chemistry', 'psychology', 'law', 'economics', 'philosophy', 'history', 'biology', 'other', 'business', 'health'])
+    if 'src' in ele: # if MMLU-Pro
+        set_domain = set(['law', 'computer science', 'history', 'health', 'philosophy', 'psychology', 'business', 'engineering', 'biology', 'chemistry', 'physics', 'math', 'economics', 'other'])
+    else: # if GPQA-Diamond
+        set_domain = set(['Biology', 'Physics', 'Chemistry'])
+    
     if in_domain:
         domain = ele["category"]
     else:
@@ -537,6 +541,8 @@ def process_one_domain(args):
     ele['topk'] = topk
     
     return ele 
+
+
 
 def qa_eval_matrix(qa_input, input_feat_list, num_workers=mp.cpu_count()):
     """Evaluate QA samples using multiprocess for parallel execution with tqdm."""
