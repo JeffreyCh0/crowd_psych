@@ -1,9 +1,10 @@
-from openai import OpenAI
+from openai import OpenAI, APITimeoutError
 import os
 import json
 import numpy as np
 from dotenv import load_dotenv
 load_dotenv()
+import time
 
 
 available_models = {
@@ -18,7 +19,6 @@ model_to_model_id = {
 
 class Agent:
     def __init__(self, model = "gpt-4o-mini"):
-        self.openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
         self.system_message = []
         self.chat_history = []
         self.model = model_to_model_id[model]
@@ -42,42 +42,51 @@ class Agent:
             raise ValueError("Invalid message type. Expected list, got ", type(messages))
 
     def get_response(self, response_format = {"type": "text"}, temperature = 1, logprobs = False, debug = False):
+        try:
+            openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
 
-        input_messages = self.system_message + self.chat_history
+            input_messages = self.system_message + self.chat_history
 
-        top_logprobs = 20 if logprobs else None
-        if debug:
-            print(input_messages)
-        if self.model not in available_models['openai']:
-            raise ValueError("Invalid model: ", self.model)
-        
-        response_raw = self.openai_client.chat.completions.create(
-            model=self.model,
-            response_format = response_format,
-            messages=input_messages,
-            temperature=temperature,
-            max_tokens=2048,
-            logprobs = logprobs,
-            top_logprobs = top_logprobs
-        )
-
-        if logprobs:
-            response = response_raw.choices[0].message.content
-            response_logprobs = response_raw.choices[0].logprobs.content
-        
-            return response, response_logprobs
-        else: # if not logprobs
-            response = response_raw.choices[0].message.content
+            top_logprobs = 20 if logprobs else None
+            if debug:
+                print(input_messages)
+            if self.model not in available_models['openai']:
+                raise ValueError("Invalid model: ", self.model)
             
-            if response_format["type"] in ["json_object", "json_schema"]:
-                try:
-                    response = json.loads(response)
-                except Exception as e:
-                    print(f"Invalid JSON format from OpenAI. Error: {e}.")
-                    print(response)
-                    return self.get_response(response_format)    
+            response_raw = openai_client.chat.completions.create(
+                model=self.model,
+                response_format = response_format,
+                messages=input_messages,
+                temperature=temperature,
+                max_tokens=2048,
+                logprobs = logprobs,
+                top_logprobs = top_logprobs
+            )
+
+            if logprobs:
+                response = response_raw.choices[0].message.content
+                response_logprobs = response_raw.choices[0].logprobs.content
+            
+                return response, response_logprobs
+            else: # if not logprobs
+                response = response_raw.choices[0].message.content
+                
+                if response_format["type"] in ["json_object", "json_schema"]:
+                    try:
+                        response = json.loads(response)
+                    except Exception as e:
+                        print(f"Invalid JSON format from OpenAI. Error: {e}.")
+                        print(response)
+                        return self.get_response(response_format)    
+            
+                return response
+        except KeyboardInterrupt:
+            raise KeyboardInterrupt
+        except APITimeoutError:
+            print("API Timeout Error. Retrying after 10 seconds...")
+            time.sleep(10)
+            return self.get_response(response_format, temperature, logprobs, debug)
         
-            return response
 
 def top_norm_prob(logprobs, target_output=None):
 

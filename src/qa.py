@@ -542,10 +542,52 @@ def process_one_domain(args):
     
     return ele 
 
+def process_one_hierarchy(args):
+    input_ele, hierarchy, disagree_type = args
+    ele = deepcopy(input_ele)
 
+    if disagree_type == 'rnd':
+        prev_topk = ele['topk^org']
+        prev_r = ele['r^org']
+        r_j_pool = [x for x in prev_topk if x[0] != prev_r]
+        r_j_tuple = random.Random(0).choice(r_j_pool)
+        r_j = r_j_tuple[0]
+        p_r_j = r_j_tuple[1]
+    elif disagree_type == '1st':
+        r_j = ele['r^org']
+        p_r_j = ele['p_r^org']
+    elif disagree_type == '2nd':
+        prev_topk = ele['topk^org']
+        r_j = prev_topk[1][0]
+        p_r_j = prev_topk[1][1]
+    elif disagree_type == 'lst':
+        prev_topk = ele['topk^org']
+        r_j = prev_topk[-1][0]
+        p_r_j = prev_topk[-1][1]
+    else:
+        raise ValueError("disagree_type must be either 'rnd', '1st', '2nd' or 'lst'")
+
+
+    question = ele['question']
+    question += f"\n# Other's Response:\n"
+    question += f"Your {hierarchy} thinks the answer is {r_j}.\n" # employer or employee
+    choices = ele['options']
+    pred, prob, topk = QA(question, choices)
+    ele['hierarchy'] = hierarchy
+    ele['r_j'] = r_j
+    ele['p_r_j'] = p_r_j
+    ele['r'] = pred
+    ele['p_r'] = prob
+    ele['topk'] = topk
+    
+    return ele 
 
 def qa_eval_matrix(qa_input, input_feat_list, num_workers=mp.cpu_count()):
     """Evaluate QA samples using multiprocess for parallel execution with tqdm."""
+
+    num_workers = min(30, mp.cpu_count())
+
+
     input_list = []
     nrows = len(input_feat_list)
     ncols = len(input_feat_list[0])
@@ -623,16 +665,25 @@ def qa_eval_matrix(qa_input, input_feat_list, num_workers=mp.cpu_count()):
     return results, accuracy  # Return processed samples
 
 def qa_eval_org(qa_input, num_workers = mp.cpu_count()):
+
+    num_workers = min(30, mp.cpu_count())
+
     with mp.Pool(num_workers) as pool:
         results = list(tqdm(pool.imap(process_org, qa_input), total=len(qa_input), desc="Processing QA"))
     return results
 
 def qa_eval_one(qa_input, disagree_type, num_workers = mp.cpu_count()):
+
+    num_workers = min(30, mp.cpu_count())
+
     with mp.Pool(num_workers) as pool:
         results = list(tqdm(pool.imap(process_one, [(input_ele, disagree_type) for input_ele in qa_input]), total=len(qa_input), desc="Processing QA"))
     return results
     
 def qa_generate_reason(qa_input, disagree_type, num_peers, num_workers = mp.cpu_count()):
+
+    num_workers = min(30, mp.cpu_count())
+
     task_list = [(input_ele, "1st") for input_ele in qa_input]*num_peers
     task_list.extend([(input_ele, disagree_type) for input_ele in qa_input]*num_peers)
     with mp.Pool(num_workers) as pool:
@@ -656,6 +707,9 @@ def qa_generate_reason(qa_input, disagree_type, num_peers, num_workers = mp.cpu_
     return ele
 
 def qa_eval_education(qa_input, disagree_type, num_workers = mp.cpu_count()):
+
+    num_workers = min(30, mp.cpu_count())
+
     education_list = ["graduate degree", "college degree", "high school diploma"]
     input_list = []
     for education in education_list:
@@ -673,6 +727,9 @@ def qa_eval_education(qa_input, disagree_type, num_workers = mp.cpu_count()):
     return dict_results
 
 def qa_eval_domain(qa_input, disagree_type, num_workers = mp.cpu_count()):
+
+    num_workers = min(30, mp.cpu_count())
+
     input_list = []
     for in_domain in [False, True]:
         input_list.extend([(input_ele, in_domain, disagree_type) for input_ele in qa_input])
@@ -688,4 +745,30 @@ def qa_eval_domain(qa_input, disagree_type, num_workers = mp.cpu_count()):
             dict_results['in_domain'].append(ele)
         else:
             dict_results['out_domain'].append(ele)
+    return dict_results
+
+def qa_eval_hierarchy(qa_input, disagree_type, num_workers = mp.cpu_count()):
+
+    num_workers = min(30, mp.cpu_count())
+
+    hierarchy_list = ["employer", "employee"]
+    input_list = []
+    for hierarchy in hierarchy_list:
+        input_list.extend([(input_ele, hierarchy, disagree_type) for input_ele in qa_input])
+
+    batched_results = []
+    for i in range(0, len(input_list), 1000):
+        batch = input_list[i:i+1000]
+        with mp.Pool(num_workers) as pool:
+            batch_result = list(tqdm(pool.imap(process_one_hierarchy, batch), total=len(batch), desc=f"Processing QA batch {i//1000 + 1} / {len(input_list)//1000 + 1}"))
+            batched_results.extend(batch_result)
+    results = batched_results
+
+    # deflatten the results back to the original shape
+    dict_results = {}
+    for hierarchy in hierarchy_list:
+        dict_results[hierarchy] = []
+        for ele in results:
+            if ele['hierarchy'] == hierarchy:
+                dict_results[hierarchy].append(ele)
     return dict_results
