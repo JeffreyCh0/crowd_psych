@@ -9,11 +9,12 @@ from tqdm import tqdm
 import random
 import pickle
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor
 
 if sys.platform == "darwin":  # macOS check
     mp.set_start_method("spawn", force=True)
 
-max_workers = 30
+max_workers = 50
 
 
 def QA(question:str, choices:list):
@@ -60,6 +61,11 @@ def batch_multiprocess(input_list, func, num_workers, batch_size = 1000):
 
     return results
 
+def multithreading(input_list, func, num_workers):
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        results = list(tqdm(executor.map(func, input_list), total=len(input_list), desc="Processing"))
+    return results
+
 def generate_reason(args):
     # generate a single reason for a single QA sample.
     input_ele, disagree_type = args
@@ -86,7 +92,7 @@ def generate_reason(args):
         raise ValueError("disagree_type must be either 'rnd', '1st', '2nd' or 'lst'")
 
 
-    question = ele['question'] + f"\n Concisely explain why the answer is {r_j}."
+    question = ele['question'] + f"\n Explain briefly why the answer is {r_j}."
     qa_agent = Agent()
     qa_agent.load_message([{"role": "user", "content": f"# Question: \n{question}"}])
     response_format={
@@ -99,7 +105,7 @@ def generate_reason(args):
             "properties": {
             "response": {
                 "type": "string",
-                "description": "Concise explanarion of the answer.",
+                "description": "Brief explanation of the answer.",
             }
             },
             "required": [
@@ -640,21 +646,21 @@ def qa_eval_matrix(qa_input, input_feat_list, num_workers=mp.cpu_count()):
     for row in input_feat_list:
         for eval_feat in row:
             eval_type = eval_feat['type']
+            agree_size = eval_feat['agree_size']
+            disagree_size = eval_feat['disagree_size']
+            disagree_type = eval_feat['disagree_type']
+            order = eval_feat['order']
 
             if eval_type == 'grp_count':
                 func = process_grp_count
-                agree_size = eval_feat['agree_size']
-                disagree_size = eval_feat['disagree_size']
-                disagree_type = eval_feat['disagree_type']
-                order = eval_feat['order']
+
                 input_list.extend([(input_ele, agree_size, disagree_size, disagree_type, order, q_idx) for q_idx, input_ele in enumerate(qa_input)])
+
             elif eval_type == 'grp_ratio':
                 func = process_grp_ratio
-                agree_size = eval_feat['agree_size']
-                disagree_size = eval_feat['disagree_size']
-                disagree_type = eval_feat['disagree_type']
-                order = eval_feat['order']
+
                 input_list.extend([(input_ele, agree_size, disagree_size, disagree_type, order, q_idx) for q_idx, input_ele in enumerate(qa_input)])
+
             # elif eval_type == 'grp_ratio_old':
             #     func = process_grp_ratio_old
             #     group_size = eval_feat['group_size']
@@ -665,22 +671,18 @@ def qa_eval_matrix(qa_input, input_feat_list, num_workers=mp.cpu_count()):
             elif eval_type == 'grp_disc':
                 func = process_grp_discrete
                 use_reason = eval_feat['use_reason']
-                agree_size = eval_feat['agree_size']
-                disagree_size = eval_feat['disagree_size']
-                disagree_type = eval_feat['disagree_type']
-                order = eval_feat['order']
+                
                 input_list.extend([(input_ele, use_reason, agree_size, disagree_size, disagree_type, order, q_idx) for q_idx, input_ele in enumerate(qa_input)])
+
             elif eval_type == 'grp_list':
                 func = process_grp_list
-                agree_size = eval_feat['agree_size']
-                disagree_size = eval_feat['disagree_size']
-                disagree_type = eval_feat['disagree_type']
-                order = eval_feat['order']
+                
                 input_list.extend([(input_ele, agree_size, disagree_size, disagree_type, order, q_idx) for q_idx, input_ele in enumerate(qa_input)])
 
     print(f"Processing {eval_type} samples...")
 
-    flatten_results = batch_multiprocess(input_list, func, num_workers, batch_size = 1000)
+    # flatten_results = batch_multiprocess(input_list, func, num_workers, batch_size = 1000)
+    flatten_results = multithreading(input_list, func, num_workers)
 
     # deflatten the results back to the original shape
     results = []
@@ -730,8 +732,7 @@ def qa_generate_reason(qa_input, disagree_type, num_peers, num_workers = mp.cpu_
 
     task_list = [(input_ele, "1st") for input_ele in qa_input]*num_peers
     task_list.extend([(input_ele, disagree_type) for input_ele in qa_input]*num_peers)
-    with mp.Pool(num_workers) as pool:
-        results = list(tqdm(pool.imap(generate_reason, task_list), total=len(qa_input)*num_peers*2, desc="Generating reasons"))
+    results = multithreading(task_list, generate_reason, num_workers)
     agree_reasons = results[:len(qa_input)*num_peers]
     disagree_reasons = results[len(qa_input)*num_peers:]
     agree_dict = {}
@@ -748,7 +749,7 @@ def qa_generate_reason(qa_input, disagree_type, num_peers, num_workers = mp.cpu_
             ele['disagree_reasons'].append(disagree_dict[peer_id][ele_id])
         ele['disagree_type'] = disagree_type
 
-    return ele
+    return qa_input
 
 def qa_eval_education(qa_input, disagree_type, num_workers = mp.cpu_count()):
 

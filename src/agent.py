@@ -3,6 +3,7 @@ import os
 import json
 import numpy as np
 from dotenv import load_dotenv
+from func_timeout import func_timeout, FunctionTimedOut
 load_dotenv()
 import time
 
@@ -53,7 +54,7 @@ class Agent:
             if self.model not in available_models['openai']:
                 raise ValueError("Invalid model: ", self.model)
             
-            response_raw = openai_client.chat.completions.create(
+            response_raw = timed_api_call(lambda: openai_client.chat.completions.create(
                 model=self.model,
                 response_format = response_format,
                 messages=input_messages,
@@ -61,7 +62,7 @@ class Agent:
                 max_tokens=2048,
                 logprobs = logprobs,
                 top_logprobs = top_logprobs
-            )
+            ),())
 
             if logprobs:
                 response = response_raw.choices[0].message.content
@@ -116,3 +117,21 @@ def top_norm_prob(logprobs, target_output=None):
     norm_logprobs = np.mean(list_logprobs)
     norm_probs = np.exp(norm_logprobs)  # Convert log probability back to probability
     return norm_probs
+
+def timed_api_call(func, args=()):
+    counter = 0
+    while True:
+        try:
+            return func_timeout(30, func, args=())
+        except FunctionTimedOut:
+            counter += 1
+            if counter > 10:
+                raise APITimeoutError(f"Reached {counter} timeouts in a row.")
+            pass
+        except KeyboardInterrupt:
+            print("Operation cancelled by user.")
+            break
+        except Exception as e:
+            print(f"API Error: {e}")
+            time.sleep(10)
+            pass
