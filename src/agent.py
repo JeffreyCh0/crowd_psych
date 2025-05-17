@@ -88,11 +88,9 @@ class Agent:
             time.sleep(10)
             return self.get_response(response_format, temperature, logprobs, debug)
 
-    def get_response_timed(self, response_format = {"type": "text"}, temperature = 1, logprobs = False, debug = False, timeout = 5, max_retries = 10):
+    def get_response_timed(self, response_format = {"type": "text"}, temperature = 1, logprobs = False, debug = False, max_retries = 5):
         return timed_api_call(
             lambda: self.get_response(response_format, temperature, logprobs, debug),
-            args=(),
-            timeout=timeout,
             max_retries=max_retries
         )
         
@@ -126,13 +124,15 @@ def top_norm_prob(logprobs, target_output=None):
     norm_probs = np.exp(norm_logprobs)  # Convert log probability back to probability
     return norm_probs
 
-def timed_api_call(func, args=(), timeout = 10, max_retries = 5):
+def timed_api_call(func, args=(), max_retries = 5):
     counter = 0
+    timeout = 5
     while True:
         try:
             return func_timeout(timeout, func, args=args)
         except FunctionTimedOut:
             counter += 1
+            timeout += 5
             if counter > max_retries:
                 print(f"Reached {counter} timeouts in a row.")
                 return None
