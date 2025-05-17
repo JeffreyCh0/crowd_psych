@@ -2,9 +2,7 @@ from openai import OpenAI, APITimeoutError
 import os
 import json
 import numpy as np
-from dotenv import load_dotenv
 from func_timeout import func_timeout, FunctionTimedOut
-load_dotenv()
 import time
 
 
@@ -19,16 +17,17 @@ model_to_model_id = {
 
 
 class Agent:
-    def __init__(self, model = "gpt-4o-mini"):
+    def __init__(self, openai_client, model = "gpt-4o-mini"):
+        self.openai_client = openai_client
         self.system_message = []
         self.chat_history = []
         self.model = model_to_model_id[model]
 
-    def reset_chat(self):
-        self.chat_history = []
+    # def reset_chat(self):
+    #     self.chat_history = []
 
-    def reset_system_message(self):
-        self.system_message = []
+    # def reset_system_message(self):
+    #     self.system_message = []
 
     def load_system_message(self, system_message):
         if type(system_message) == str:
@@ -44,7 +43,6 @@ class Agent:
 
     def get_response(self, response_format = {"type": "text"}, temperature = 1, logprobs = False, debug = False):
         try:
-            openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
 
             input_messages = self.system_message + self.chat_history
 
@@ -54,7 +52,7 @@ class Agent:
             if self.model not in available_models['openai']:
                 raise ValueError("Invalid model: ", self.model)
             
-            response_raw = openai_client.chat.completions.create(
+            response_raw = self.openai_client.chat.completions.create(
                 model=self.model,
                 response_format = response_format,
                 messages=input_messages,
@@ -132,13 +130,11 @@ def timed_api_call(func, args=(), max_retries = 5):
             return func_timeout(timeout, func, args=args)
         except FunctionTimedOut:
             counter += 1
-            timeout += 5
             if counter > max_retries:
                 print(f"Reached {counter} timeouts in a row.")
-                return None
         except KeyboardInterrupt:
             print("Operation cancelled by user.")
-            break
+            raise KeyboardInterrupt
         except Exception as e:
             print(f"API Error: {e}")
             time.sleep(10)

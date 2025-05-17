@@ -1,29 +1,10 @@
-import importlib
 import sys
 sys.path.append('../src')
 
 import qa
-importlib.reload(qa)
-import qa
-
-import plot
-from plot import plot_from_file
-
 import pickle
-import numpy as np
-import pandas as pd
 
-import re
-import random
-import ast
-
-import matplotlib.pyplot as plt
-import seaborn as sns
-import scipy.stats as stats
-from scipy.stats import ttest_rel
-from scipy.stats import pearsonr
-
-benchmarks = ["MMLU-Pro"]
+benchmarks = ["ARC", "OpinionQA", "GlobalOpinionQA", "SIQA"]
 factual = ["MMLU-Pro", "GPQA-Diamond", "ARC"]
 opinion = ["OpinionQA", "GlobalOpinionQA", "SIQA"]
 
@@ -50,6 +31,6 @@ for benchmark in benchmarks:
 
     results, accuracy = qa.qa_eval_matrix(res_org, input_feat_list)
 
-    with open(f'../data/{benchmark}/sample_results/grp_count.pkl', 'wb') as f:
+    with open(f'../data/{benchmark}/sample_results/grp_count_10.pkl', 'wb') as f:
         pickle.dump(results, f)
 
