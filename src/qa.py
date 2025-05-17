@@ -44,7 +44,7 @@ def QA(question:str, choices:list):
         }
         }
     }
-    response_json, response_logprobs = qa_agent.get_response(response_format = response_format, logprobs = True, temperature = 0)
+    response_json, response_logprobs = qa_agent.get_response_timed(response_format = response_format, logprobs = True, temperature = 0)
     response = json.loads(response_json)["response"]
     top_prob = top_norm_prob(response_logprobs, response)
     top_prob_list = [(x.token, round(np.exp(x.logprob), 4)) for x in list(response_logprobs[3].top_logprobs)][:len(choices)]
@@ -472,6 +472,9 @@ def process_grp_ratio(args):
     ele['p_r'] = prob
     ele['topk'] = topk
     ele['group_size'] = group_size
+    ele['agree_size'] = agree_size
+    ele['disagree_size'] = disagree_size
+    ele['agree_ratio'] = agree_ratio
     ele['disagree_ratio'] = disagree_ratio
     ele['disagree_type'] = disagree_type
     ele['order'] = order

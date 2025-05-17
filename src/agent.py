@@ -54,7 +54,7 @@ class Agent:
             if self.model not in available_models['openai']:
                 raise ValueError("Invalid model: ", self.model)
             
-            response_raw = timed_api_call(lambda: openai_client.chat.completions.create(
+            response_raw = openai_client.chat.completions.create(
                 model=self.model,
                 response_format = response_format,
                 messages=input_messages,
@@ -62,7 +62,7 @@ class Agent:
                 max_tokens=2048,
                 logprobs = logprobs,
                 top_logprobs = top_logprobs
-            ),())
+            )
 
             if logprobs:
                 response = response_raw.choices[0].message.content
@@ -87,6 +87,14 @@ class Agent:
             print("API Timeout Error. Retrying after 10 seconds...")
             time.sleep(10)
             return self.get_response(response_format, temperature, logprobs, debug)
+
+    def get_response_timed(self, response_format = {"type": "text"}, temperature = 1, logprobs = False, debug = False, timeout = 5, max_retries = 10):
+        return timed_api_call(
+            lambda: self.get_response(response_format, temperature, logprobs, debug),
+            args=(),
+            timeout=timeout,
+            max_retries=max_retries
+        )
         
 
 def top_norm_prob(logprobs, target_output=None):
@@ -118,16 +126,16 @@ def top_norm_prob(logprobs, target_output=None):
     norm_probs = np.exp(norm_logprobs)  # Convert log probability back to probability
     return norm_probs
 
-def timed_api_call(func, args=()):
+def timed_api_call(func, args=(), timeout = 10, max_retries = 5):
     counter = 0
     while True:
         try:
-            return func_timeout(30, func, args=())
+            return func_timeout(timeout, func, args=args)
         except FunctionTimedOut:
             counter += 1
-            if counter > 10:
-                raise APITimeoutError(f"Reached {counter} timeouts in a row.")
-            pass
+            if counter > max_retries:
+                print(f"Reached {counter} timeouts in a row.")
+                return None
         except KeyboardInterrupt:
             print("Operation cancelled by user.")
             break
