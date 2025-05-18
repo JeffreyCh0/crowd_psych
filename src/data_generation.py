@@ -10,7 +10,7 @@ opinion = ["OpinionQA", "GlobalOpinionQA", "SIQA"]
 
 for benchmark in benchmarks:
 
-    with open(f'../data/{benchmark}/sample_results/org_reason_10.pkl', 'rb') as f:
+    with open(f'../data/{benchmark}/sample_results/org_reason.pkl', 'rb') as f:
         org_reason = pickle.load(f)
 
     input_feat_list = []

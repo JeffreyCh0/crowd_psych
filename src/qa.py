@@ -21,11 +21,13 @@ if sys.platform == "darwin":  # macOS check
 max_workers = 50
 
 
-def QA(question:str, choices:list, openai_client):
+def QA(question:str, choices:list, openai_client, temperature = 0, system_prompt = None):
     qa_agent = Agent(openai_client)
     str_choices = zip(range(len(choices)), choices)
     alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     str_choices = "\n".join([f"{alpha[idx]}. {choice}" for idx, choice in str_choices])
+    if system_prompt:
+        qa_agent.load_system_message(system_prompt)
     qa_agent.load_message([{"role": "user", "content": f"# Question: \n{question}\n# Choices: \n{str_choices}"}])
     response_format={
         "type": "json_schema",
@@ -48,7 +50,7 @@ def QA(question:str, choices:list, openai_client):
         }
         }
     }
-    response_json, response_logprobs = qa_agent.get_response_timed(response_format = response_format, logprobs = True, temperature = 0)
+    response_json, response_logprobs = qa_agent.get_response_timed(response_format = response_format, logprobs = True, temperature = temperature)
     response = json.loads(response_json)["response"]
     top_prob = top_norm_prob(response_logprobs, response)
     top_prob_list = [(x.token, round(np.exp(x.logprob), 4)) for x in list(response_logprobs[3].top_logprobs)][:len(choices)]
@@ -97,9 +99,17 @@ def generate_reason(args):
     else:
         raise ValueError("disagree_type must be either 'rnd', '1st', '2nd' or 'lst'")
 
+    question = ele['question']
+    choices = ele['options']
+    
+    str_choices = zip(range(len(choices)), choices)
+    alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    str_choices = "\n".join([f"{alpha[idx]}. {choice}" for idx, choice in str_choices])
 
-    question = ele['question'] + f"\n Explain briefly why the answer is {r_j}."
-    qa_agent.load_message([{"role": "user", "content": f"# Question: \n{question}"}])
+    prompt = f"# Question: \n{question}\n# Choices: \n{str_choices}\n"
+    prompt +=  f"\n Explain briefly why the answer is {r_j}."
+
+    qa_agent.load_message([{"role": "user", "content": prompt}])
     response_format={
         "type": "json_schema",
         "json_schema": {
@@ -137,6 +147,225 @@ def process_org(input_ele):
     ele['r^org'] = pred
     ele['p_r^org'] = prob
     ele['topk^org'] = topk
+    return ele  # Return updated sample
+
+def process_mas_org(args):
+    input_ele, q_idx, openai_client = args
+    ele = deepcopy(input_ele)
+    question = ele['question']
+    choices = ele['options']
+    pred, prob, topk = QA(question, choices, openai_client, temperature = 1)
+
+    str_choices = zip(range(len(choices)), choices)
+    alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    str_choices = "\n".join([f"{alpha[idx]}. {choice}" for idx, choice in str_choices])
+
+    qa_agent = Agent(openai_client)
+
+    prompt = f"# Question: \n{question}\n# Choices: \n{str_choices}\n"
+    prompt +=  f"\n Explain briefly why the answer is {pred}."
+
+    qa_agent.load_message([{"role": "user", "content": prompt}])
+    response_format={
+        "type": "json_schema",
+        "json_schema": {
+        "name": "Explanation",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+            "response": {
+                "type": "string",
+                "description": "Brief explanation of the answer.",
+            }
+            },
+            "required": [
+                "response"
+            ],
+            "additionalProperties": False
+        }
+        }
+    }
+    reason_json = qa_agent.get_response(response_format = response_format, temperature = 1)
+    reason = reason_json["response"]
+
+    ele['r^org'] = pred
+    ele['p_r^org'] = prob
+    ele['topk^org'] = topk
+    ele['reason'] = reason
+    return ele  # Return updated sample
+
+def process_mas_res(args):
+    input_ele, peer_ele, q_idx, target_agent_idx, method, openai_client = args
+    ele = deepcopy(input_ele)
+    p_ele = deepcopy(peer_ele)
+
+    r_org = ele['r^org']
+
+    agree_agents = {key:val for key, val in p_ele.items() if val['r^org'] == r_org}
+    disagree_agents = {key:val for key, val in p_ele.items() if val['r^org'] != r_org}
+    total_agree_size = len(agree_agents)
+    total_disagree_size = len(disagree_agents)
+
+    # define factors
+    if method == "control":
+        system_prompt = None
+        order = ["ad", "da"][q_idx % 2]
+        education = None
+        presentation = ["grp_count", "grp_ratio", "grp_list", "grp_disc", "grp_reason"][q_idx % 5]
+    elif method == "strong_factors":
+        system_prompt = None
+        order = "da"
+        education = ("high school diploma", "graduate degree") # agree, disagree
+        presentation = "grp_reason"
+    elif method == "weak_factors":
+        system_prompt = None
+        order = "ad"
+        education = ("graduate degree", "high school diploma") # agree, disagree
+        presentation = "grp_disc"
+    elif method == "strong_prompt":
+        system_prompt = "Please be agreeable."
+        order = ["ad", "da"][q_idx % 2]
+        education = None
+        presentation = ["grp_count", "grp_ratio", "grp_list", "grp_disc", "grp_reason"][q_idx % 5]
+    elif method == "weak_prompt":
+        system_prompt = "Please be stubborn."
+        order = ["ad", "da"][q_idx % 2]
+        education = None
+        presentation = ["grp_count", "grp_ratio", "grp_list", "grp_disc", "grp_reason"][q_idx % 5]
+    else:
+        raise ValueError("method must be either 'strong_prompt', 'weak_prompt', 'control', 'strong_factors' or 'weak_factors'")
+
+    question = ele['question']
+    question += f"\n# Others' Response:\n"
+
+    agree_prompt = ""
+    disagree_prompt = ""
+
+    if presentation == "grp_count":
+        if len(agree_agents) > 0:
+            agree_size = len(agree_agents)
+            plural = "s" if agree_size > 1 else ""
+            s = "s" if agree_size == 1 else ""
+            education_prompt = f" with {education[0]}" if education else ""
+            agree_prompt += f"{agree_size} agent{plural}{education_prompt} think{s} the answer is {r_org}.\n"
+
+        if len(disagree_agents) > 0:
+            unique_r_j = list(set([val['r^org'] for val in disagree_agents.values()]))
+            random.shuffle(unique_r_j)
+            for r_j in unique_r_j:
+                disagree_size = len([val for val in disagree_agents.values() if val['r^org'] == r_j])
+                plural = "s" if disagree_size > 1 else ""
+                s = "s" if disagree_size == 1 else ""
+                education_prompt = f" with {education[1]}" if education else ""
+                disagree_prompt += f"{disagree_size} agent{plural}{education_prompt} think{s} the answer is {r_j}.\n"
+
+    elif presentation == "grp_ratio":
+        group_size = len(agree_agents) + len(disagree_agents)
+        agree_ratio = len(agree_agents) / group_size if group_size > 0 else 0
+        disagree_ratio = len(disagree_agents) / group_size if group_size > 0 else 0
+        
+        str_agree_ratio = str(round((agree_ratio)*100))
+        str_disagree_ratio = str(round(disagree_ratio*100))
+
+        question += f"Among {group_size} agents,\n"
+        if len(agree_agents) > 0:
+            education_prompt = f" with {education[0]}" if education else ""
+            agree_prompt += f"{str_agree_ratio}% of agents{education_prompt} think the answer is {r_org}.\n"
+
+        if len(disagree_agents) > 0:
+            unique_r_j = list(set([val['r^org'] for val in disagree_agents.values()]))
+            random.shuffle(unique_r_j)
+            for r_j in unique_r_j:
+                disagree_size = len([val for val in disagree_agents.values() if val['r^org'] == r_j])
+                education_prompt = f" with {education[1]}" if education else ""
+                disagree_prompt += f"{str_disagree_ratio}% of agents{education_prompt} think the answer is {r_j}.\n"
+
+    elif presentation == "grp_list":
+        if len(agree_agents) > 0:
+            agree_agents_keys = list(agree_agents.keys())
+            agree_agents_keys = ", ".join(agree_agents_keys)
+            s = "s" if len(agree_agents_keys) > 1 else ""
+            education_prompt = f" with {education[0]}" if education else ""
+            agree_prompt += f"Agent {agree_agents_keys}{education_prompt} think{s} the answer is {r_org}.\n"
+        
+        if len(disagree_agents) > 0:
+            unique_r_j = list(set([val['r^org'] for val in disagree_agents.values()]))
+            random.shuffle(unique_r_j)
+            for r_j in unique_r_j:
+                disagree_agents_keys = [key for key, val in disagree_agents.items() if val['r^org'] == r_j]
+                disagree_agents_keys = list(disagree_agents_keys)
+                disagree_agents_keys = ", ".join(disagree_agents_keys)
+                s = "s" if len(disagree_agents_keys) > 1 else ""
+                education_prompt = f" with {education[1]}" if education else ""
+                disagree_prompt += f"Agent {disagree_agents_keys}{education_prompt} think{s} the answer is {r_j}.\n"
+
+    elif presentation == "grp_disc":
+        if len(agree_agents) > 0:
+            agree_agents_keys = list(agree_agents.keys())
+            education_prompt = f" with {education[0]}" if education else ""
+            for agree_agent in agree_agents_keys:
+                agree_prompt += f"Agent {agree_agent}{education_prompt} thinks the answer is {r_org}.\n"
+
+        if len(disagree_agents) > 0:
+            unique_r_j = list(set([val['r^org'] for val in disagree_agents.values()]))
+            random.shuffle(unique_r_j)
+            for r_j in unique_r_j:
+                disagree_agents_keys = [key for key, val in disagree_agents.items() if val['r^org'] == r_j]
+                disagree_agents_keys = list(disagree_agents_keys)
+                education_prompt = f" with {education[1]}" if education else ""
+                for disagree_agent in disagree_agents_keys:
+                    disagree_prompt += f"Agent {disagree_agent}{education_prompt} thinks the answer is {r_j}.\n"
+
+    elif presentation == "grp_reason":
+        if len(agree_agents) > 0:
+            agree_agents_keys = list(agree_agents.keys())
+            agree_agents_reasons = [x['reason'] for x in agree_agents.values()]
+            agree_agents_input = list(zip(agree_agents_keys, agree_agents_reasons))
+            education_prompt = f" with {education[0]}" if education else ""
+            for agree_agent, reason in agree_agents_input:
+                agree_prompt += f"Agent {agree_agent}{education_prompt} thinks the answer is {r_org}, because {reason}.\n"
+
+        if len(disagree_agents) > 0:
+            unique_r_j = list(set([val['r^org'] for val in disagree_agents.values()]))
+            random.shuffle(unique_r_j)
+            for r_j in unique_r_j:
+                disagree_agents_keys = [key for key, val in disagree_agents.items() if val['r^org'] == r_j]
+                disagree_agents_keys = list(disagree_agents_keys)
+                disagree_agents_reasons = [x['reason'] for x in disagree_agents.values() if x['r^org'] == r_j]
+                disagree_agents_input = list(zip(disagree_agents_keys, disagree_agents_reasons))
+                education_prompt = f" with {education[1]}" if education else ""
+                for disagree_agent, reason in disagree_agents_input:
+                    disagree_prompt += f"Agent {disagree_agent}{education_prompt} thinks the answer is {r_j}, because {reason}.\n"
+
+    else:
+        raise ValueError("presentation must be either 'grp_count', 'grp_ratio', 'grp_list', 'grp_disc' or 'grp_reason'")
+    
+    if order == "ad":
+        question += agree_prompt
+        question += disagree_prompt
+    elif order == "da":
+        question += disagree_prompt
+        question += agree_prompt
+    else:
+        raise ValueError("order must be either 'ad' or 'da'")
+
+    choices = ele['options']
+    str_choices = zip(range(len(choices)), choices)
+    alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    str_choices = "\n".join([f"{alpha[idx]}. {choice}" for idx, choice in str_choices])
+    pred, prob, topk = QA(question, choices, openai_client, system_prompt = system_prompt)
+    ele['r'] = pred
+    ele['p_r'] = prob
+    ele['topk'] = topk
+    ele['agree_size'] = total_agree_size
+    ele['disagree_size'] = total_disagree_size
+    ele['disagree_type'] = "2nd"
+    ele['order'] = order
+    ele['system_prompt'] = system_prompt
+    ele['user_prompt_question'] = question
+    # ele['user_prompt_choices'] = str_choices
+
     return ele  # Return updated sample
 
 # ONE
@@ -591,6 +820,7 @@ def process_grp_list(args):
 
 def qa_eval_matrix(qa_input, input_feat_list, num_workers=mp.cpu_count()):
     """Evaluate QA samples using multiprocess for parallel execution with tqdm."""
+    # qa_input: org.pkl
 
     num_workers = min(max_workers, mp.cpu_count())
 
@@ -771,6 +1001,52 @@ def qa_eval_hierarchy(qa_input, disagree_type, num_workers = mp.cpu_count()):
                 dict_results[hierarchy].append(ele)
     return dict_results
 
+def qa_eval_mas_org(qa_input, agent_count = 5, num_workers = mp.cpu_count()):
+    num_workers = min(max_workers, mp.cpu_count())
+    openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
+    input_list = [(input_ele, q_idx, openai_client) for q_idx, input_ele in enumerate(qa_input) for i in range(agent_count)]
+    
+    flatten_results = multithreading(input_list, process_mas_org, num_workers)
+
+    alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    agent_ids = alpha[:agent_count]
+
+    results = []
+    for i in range(len(qa_input)):
+        peer_info = {a_idx: result for a_idx, result in zip(agent_ids, flatten_results[i*agent_count:(i+1)*agent_count])}
+        results.append(peer_info)
+
+    return results
+
+def qa_eval_mas_res(qa_input, num_workers = mp.cpu_count()):
+    num_workers = min(max_workers, mp.cpu_count())
+    openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
+    agent_count = len(qa_input[0])
+    alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    agent_ids = alpha[:agent_count]
+
+    methods = ["control", "strong_factors", "weak_factors", "strong_prompt", "weak_prompt"]
+
+    output_dict = {method: [] for method in methods}
+
+    for method in methods:  
+        input_list = []
+        for q_idx, peer_info in enumerate(qa_input):
+            for target_agent_idx in agent_ids:
+                input_ele = peer_info[target_agent_idx]
+                peer_ele = {agent_idx: peer_info[agent_idx] for agent_idx in agent_ids if agent_idx != target_agent_idx}
+                input_list.append((input_ele, peer_ele, q_idx, target_agent_idx, method, openai_client))
+        
+        flatten_results = multithreading(input_list, process_mas_res, num_workers)
+
+        results = []
+        for i in range(len(qa_input)):
+            peer_info = {a_idx: result for a_idx, result in zip(agent_ids, flatten_results[i*agent_count:(i+1)*agent_count])}
+            results.append(peer_info)
+
+        output_dict[method] = results
+
+    return output_dict
 
 # deprecated
 
