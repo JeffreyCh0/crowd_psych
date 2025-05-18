@@ -76,7 +76,7 @@ class Agent:
                     except Exception as e:
                         print(f"Invalid JSON format from OpenAI. Error: {e}.")
                         print(response)
-                        return self.get_response(response_format)    
+                        return self.get_response(response_format, temperature, logprobs, debug)    
             
                 return response
         except KeyboardInterrupt:

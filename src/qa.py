@@ -72,7 +72,9 @@ def multithreading(input_list, func, num_workers):
 
 def generate_reason(args):
     # generate a single reason for a single QA sample.
-    input_ele, disagree_type = args
+    input_ele, disagree_type, openai_client = args
+    qa_agent = Agent(openai_client)
+
     ele = deepcopy(input_ele)
     if disagree_type == 'rnd':
         prev_topk = ele['topk^org']
@@ -97,7 +99,6 @@ def generate_reason(args):
 
 
     question = ele['question'] + f"\n Explain briefly why the answer is {r_j}."
-    qa_agent = Agent()
     qa_agent.load_message([{"role": "user", "content": f"# Question: \n{question}"}])
     response_format={
         "type": "json_schema",
@@ -684,11 +685,12 @@ def qa_eval_one(qa_input, disagree_type, num_workers = mp.cpu_count()):
     return results
     
 def qa_generate_reason(qa_input, disagree_type, num_peers, num_workers = mp.cpu_count()):
+    openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
 
     num_workers = min(max_workers, mp.cpu_count())
 
-    task_list = [(input_ele, "1st") for input_ele in qa_input]*num_peers
-    task_list.extend([(input_ele, disagree_type) for input_ele in qa_input]*num_peers)
+    task_list = [(input_ele, "1st", openai_client) for input_ele in qa_input]*num_peers
+    task_list.extend([(input_ele, disagree_type, openai_client) for input_ele in qa_input]*num_peers)
     results = multithreading(task_list, generate_reason, num_workers)
     agree_reasons = results[:len(qa_input)*num_peers]
     disagree_reasons = results[len(qa_input)*num_peers:]

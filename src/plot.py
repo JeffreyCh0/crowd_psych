@@ -34,8 +34,8 @@ def plot_from_file(PATH, metric, title = None, vlimit = None, cbar = True):
     order = results_metadata['order']
 
     if d_type == "grp_count" or d_type == "grp_disc" or d_type == "grp_list" or d_type == "grp_ratio":
-        row_labels = [str(x) for x in range(1,6)]
-        col_labels = [str(x) for x in range(1,6)]
+        row_labels = [str(x) for x in range(1,len(results_data)+1)]
+        col_labels = [str(x) for x in range(1,len(results_data[0])+1)]
         x_label = "# of Agree"
         y_label = "# of Disagree"
     elif d_type == "group_ratio_old":
@@ -97,8 +97,8 @@ def plot_from_list(list_PATH, metric, list_title, vlimit):
                             results_data[r_idx][c_idx].append(ele)
             
         # Set up labels
-        row_labels = [str(x) for x in range(1,6)]
-        col_labels = [str(x) for x in range(1,6)]
+        row_labels = [str(x) for x in range(1,len(results_data)+1)]
+        col_labels = [str(x) for x in range(1,len(results_data[0])+1)]
         x_label = "# of Agree"
         y_label = "# of Disagree"
 
@@ -139,8 +139,8 @@ def plot_from_list_data(list_data, metric, list_title, vlimit):
     for fig_idx, results_data in enumerate(list_data):
 
         # Set up labels
-        row_labels = [str(x) for x in range(1,6)]
-        col_labels = [str(x) for x in range(1,6)]
+        row_labels = [str(x) for x in range(1,len(results_data)+1)]
+        col_labels = [str(x) for x in range(1,len(results_data[0])+1)]
         x_label = "# of Agree"
         y_label = "# of Disagree"
 
