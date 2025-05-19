@@ -124,10 +124,12 @@ def plot_from_list(list_PATH, metric, list_title, vlimit):
         sns.heatmap(df, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5,
                     vmin=vlimit[0] if vlimit else None, vmax=vlimit[1] if vlimit else None,
                     cbar=False, ax=ax, annot_kws={"size": 20})
-
+        
+        ax.tick_params(axis='both', labelsize=18)  
         ax.set_title(subplot_title, fontsize=20)
         ax.set_xlabel(x_label, fontsize=18)
-        ax.set_ylabel(y_label, fontsize=18)
+        if fig_idx == 0:
+            ax.set_ylabel(y_label, fontsize=18)
 
     plt.tight_layout()
     plt.show()
