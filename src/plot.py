@@ -99,8 +99,8 @@ def plot_from_list(list_PATH, metric, list_title, vlimit):
         # Set up labels
         row_labels = [str(x) for x in range(1,len(results_data)+1)]
         col_labels = [str(x) for x in range(1,len(results_data[0])+1)]
-        x_label = "# of Agree"
-        y_label = "# of Disagree"
+        x_label = "Number of Agree"
+        y_label = "Number of Disagree"
 
         # Title
         subplot_title = list_title[fig_idx] if list_title else None
@@ -123,13 +123,13 @@ def plot_from_list(list_PATH, metric, list_title, vlimit):
         ax = axs[0][fig_idx]
         sns.heatmap(df, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5,
                     vmin=vlimit[0] if vlimit else None, vmax=vlimit[1] if vlimit else None,
-                    cbar=False, ax=ax, annot_kws={"size": 20})
+                    cbar=False, ax=ax, annot_kws={"size": 22})
         
-        ax.tick_params(axis='both', labelsize=18)  
-        ax.set_title(subplot_title, fontsize=20)
-        ax.set_xlabel(x_label, fontsize=18)
+        ax.tick_params(axis='both', labelsize=28)  
+        ax.set_title(subplot_title, fontsize=40)
+        ax.set_xlabel(x_label, fontsize=28)
         if fig_idx == 0:
-            ax.set_ylabel(y_label, fontsize=18)
+            ax.set_ylabel(y_label, fontsize=28)
 
     plt.tight_layout()
     plt.show()
@@ -143,8 +143,8 @@ def plot_from_list_data(list_data, metric, list_title, vlimit):
         # Set up labels
         row_labels = [str(x) for x in range(1,len(results_data)+1)]
         col_labels = [str(x) for x in range(1,len(results_data[0])+1)]
-        x_label = "# of Agree"
-        y_label = "# of Disagree"
+        x_label = "Number of Agree"
+        y_label = "Number of Disagree"
 
         # Title
         subplot_title = list_title[fig_idx] if list_title else None
@@ -167,11 +167,12 @@ def plot_from_list_data(list_data, metric, list_title, vlimit):
         ax = axs[0][fig_idx]
         sns.heatmap(df, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5,
                     vmin=vlimit[0] if vlimit else None, vmax=vlimit[1] if vlimit else None,
-                    cbar=False, ax=ax, annot_kws={"size": 20})
+                    cbar=False, ax=ax, annot_kws={"size": 22})
 
-        ax.set_title(subplot_title, fontsize=20)
-        ax.set_xlabel(x_label, fontsize=18)
-        ax.set_ylabel(y_label, fontsize=18)
+        ax.tick_params(axis='both', labelsize=26)
+        ax.set_title(subplot_title, fontsize=28)
+        ax.set_xlabel(x_label, fontsize=26)
+        ax.set_ylabel(y_label, fontsize=26)
 
     plt.tight_layout()
     plt.show()
