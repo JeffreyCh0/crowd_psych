@@ -4,11 +4,14 @@ import json
 import numpy as np
 from func_timeout import func_timeout, FunctionTimedOut
 import time
+from dotenv import load_dotenv
+load_dotenv()
 
 
 available_models = {
     'openai' : ["gpt-4o-2024-11-20", "gpt-4o-mini-2024-07-18", "chatgpt-4o-latest",
                  "gpt-4.1-2025-04-14", "gpt-4.1-mini-2025-04-14", "gpt-4.1-nano-2025-04-14"],
+    'vllm': ["meta-llama/Llama-3.3-70B-Instruct"],
 }
 model_to_model_id = { #['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano']
     "gpt-4o": "gpt-4o-2024-11-20",
@@ -16,9 +19,23 @@ model_to_model_id = { #['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt
     "gpt-4.1": "gpt-4.1-2025-04-14",
     "gpt-4.1-mini": "gpt-4.1-mini-2025-04-14",
     "gpt-4.1-nano": "gpt-4.1-nano-2025-04-14",
-    "chatgpt-4o": "chatgpt-4o-latest"
+    "chatgpt-4o": "chatgpt-4o-latest",
+    "llama-3.3-70B": "meta-llama/Llama-3.3-70B-Instruct"
 }
 
+def create_openai_client(llm):
+    if llm in available_models['openai']:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set.")
+        openai_client = OpenAI(api_key=api_key)
+        return openai_client
+    elif llm in available_models['vllm']:
+        openai_client = OpenAI(
+                base_url="http://localhost:8000/v1",
+                api_key="EMPTY"
+            )
+        return openai_client
 
 class Agent:
     def __init__(self, openai_client, model = "gpt-4o-mini"):
@@ -53,7 +70,7 @@ class Agent:
             top_logprobs = 20 if logprobs else None
             if debug:
                 print(input_messages)
-            if self.model not in available_models['openai']:
+            if self.model not in available_models['openai']+ available_models['vllm']:
                 raise ValueError("Invalid model: ", self.model)
             
             response_raw = self.openai_client.chat.completions.create(

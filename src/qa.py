@@ -2,7 +2,7 @@ import json
 
 import sys
 sys.path.append('../src')
-from agent import Agent, top_norm_prob
+from agent import Agent, top_norm_prob, create_openai_client
 import numpy as np
 import multiprocess as mp
 from tqdm import tqdm
@@ -10,8 +10,6 @@ import random
 import pickle
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
-load_dotenv()
 from openai import OpenAI
 import os
 
@@ -21,7 +19,7 @@ if sys.platform == "darwin":  # macOS check
 max_workers = 50
 
 
-def QA(question:str, choices:list, openai_client, temperature = 0, system_prompt = None, llm = "gpt-4o-mini"):
+def QA(question:str, choices:list, openai_client, temperature = 0, system_prompt = None, llm = None):
     qa_agent = Agent(openai_client, model = llm)
     str_choices = zip(range(len(choices)), choices)
     alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -872,13 +870,13 @@ def process_grp_discrete(args):
 
 # EVALUATION
 
-def qa_eval_matrix(qa_input, input_feat_list, num_workers=mp.cpu_count()):
+def qa_eval_matrix(qa_input, input_feat_list, num_workers=mp.cpu_count(), llm = None):
     """Evaluate QA samples using multiprocess for parallel execution with tqdm."""
     # qa_input: org.pkl
 
     num_workers = min(max_workers, mp.cpu_count())
 
-    openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
+    openai_client = create_openai_client(llm)
 
     input_list = []
     nrows = len(input_feat_list)
@@ -952,24 +950,24 @@ def qa_eval_matrix(qa_input, input_feat_list, num_workers=mp.cpu_count()):
 
     return results, accuracy  # Return processed samples
 
-def qa_eval_org(qa_input, num_workers = mp.cpu_count(), llm = "gpt-4o-mini"):
-    openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
+def qa_eval_org(qa_input, num_workers = mp.cpu_count(), llm = None):
+    openai_client = create_openai_client(llm)
     num_workers = min(max_workers, mp.cpu_count())
 
     input_list = [(input_ele, openai_client, llm) for input_ele in qa_input]
     results = multithreading(input_list, process_org, num_workers)
     return results
 
-def qa_eval_one(qa_input, disagree_type, num_workers = mp.cpu_count(), llm = "gpt-4o-mini"):
-    openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
+def qa_eval_one(qa_input, disagree_type, num_workers = mp.cpu_count(), llm = None):
+    openai_client = create_openai_client(llm)
     num_workers = min(max_workers, mp.cpu_count())
     input_list = [(input_ele, disagree_type, openai_client, llm) for input_ele in qa_input]
     results = multithreading(input_list, process_one, num_workers)
 
     return results
     
-def qa_generate_reason(qa_input, disagree_type, num_peers, num_workers = mp.cpu_count()):
-    openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
+def qa_generate_reason(qa_input, disagree_type, num_peers, num_workers = mp.cpu_count(), llm = None):
+    openai_client = create_openai_client(llm)
 
     num_workers = min(max_workers, mp.cpu_count())
 
@@ -1055,9 +1053,9 @@ def qa_eval_hierarchy(qa_input, disagree_type, num_workers = mp.cpu_count()):
                 dict_results[hierarchy].append(ele)
     return dict_results
 
-def qa_eval_mas_org(qa_input, agent_count = 5, num_workers = mp.cpu_count()):
+def qa_eval_mas_org(qa_input, agent_count = 5, num_workers = mp.cpu_count(), llm = None):
     num_workers = min(max_workers, mp.cpu_count())
-    openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
+    openai_client = create_openai_client(llm)
     input_list = [(input_ele, q_idx, openai_client) for q_idx, input_ele in enumerate(qa_input) for i in range(agent_count)]
     
     flatten_results = multithreading(input_list, process_mas_org, num_workers)
@@ -1072,9 +1070,9 @@ def qa_eval_mas_org(qa_input, agent_count = 5, num_workers = mp.cpu_count()):
 
     return results
 
-def qa_eval_mas_cot(qa_input, agent_count = 5, num_workers = mp.cpu_count()):
+def qa_eval_mas_cot(qa_input, agent_count = 5, num_workers = mp.cpu_count(), llm = None):
     num_workers = min(max_workers, mp.cpu_count())
-    openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
+    openai_client = create_openai_client(llm)
     input_list = [(input_ele, q_idx, openai_client) for q_idx, input_ele in enumerate(qa_input) for i in range(agent_count)]
     
     flatten_results = multithreading(input_list, process_mas_cot, num_workers)
@@ -1089,9 +1087,9 @@ def qa_eval_mas_cot(qa_input, agent_count = 5, num_workers = mp.cpu_count()):
 
     return results
 
-def qa_eval_mas_res(qa_input, num_workers = mp.cpu_count()):
+def qa_eval_mas_res(qa_input, num_workers = mp.cpu_count(), llm = None):
     num_workers = min(max_workers, mp.cpu_count())
-    openai_client = OpenAI(api_key = os.getenv('OPENAI_API_KEY'))
+    openai_client = create_openai_client(llm)
     agent_count = len(qa_input[0])
     alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     agent_ids = alpha[:agent_count]
