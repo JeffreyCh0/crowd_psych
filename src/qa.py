@@ -10,13 +10,12 @@ import random
 import pickle
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
-from openai import OpenAI
 import os
 
 if sys.platform == "darwin":  # macOS check
     mp.set_start_method("spawn", force=True)
 
-max_workers = 50
+max_workers = 20
 
 
 def QA(question:str, choices:list, openai_client, temperature = 0, system_prompt = None, llm = None):
@@ -49,6 +48,8 @@ def QA(question:str, choices:list, openai_client, temperature = 0, system_prompt
         }
     }
     response_json, response_logprobs = qa_agent.get_response_timed(response_format = response_format, logprobs = True, temperature = temperature)
+    if response_json is None:
+        return None, None, None
     response = json.loads(response_json)["response"]
     top_prob = top_norm_prob(response_logprobs, response)
     top_prob_list = [(x.token, round(np.exp(x.logprob), 4)) for x in list(response_logprobs[3].top_logprobs)][:len(choices)]
@@ -956,6 +957,10 @@ def qa_eval_org(qa_input, num_workers = mp.cpu_count(), llm = None):
 
     input_list = [(input_ele, openai_client, llm) for input_ele in qa_input]
     results = multithreading(input_list, process_org, num_workers)
+    error_idx = [idx for idx, ele in enumerate(results) if ele['r^org'] is None]
+    print("Following samples have errors:")
+    print(error_idx)
+
     return results
 
 def qa_eval_one(qa_input, disagree_type, num_workers = mp.cpu_count(), llm = None):
