@@ -24,6 +24,7 @@ model_to_model_id = { #['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt
 }
 
 def create_openai_client(llm):
+    llm = model_to_model_id[llm] if llm in model_to_model_id else llm
     if llm in available_models['openai']:
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
@@ -36,6 +37,8 @@ def create_openai_client(llm):
                 api_key="EMPTY"
             )
         return openai_client
+    else:
+        raise ValueError(f"Model {llm} is not supported. Available models: {available_models['openai'] + available_models['vllm']}")
 
 class Agent:
     def __init__(self, openai_client, model = "gpt-4o-mini"):
@@ -72,7 +75,9 @@ class Agent:
                 print(input_messages)
             if self.model not in available_models['openai']+ available_models['vllm']:
                 raise ValueError("Invalid model: ", self.model)
-            
+            print("="*50)
+            print(input_messages)
+            print("="*50)
             response_raw = self.openai_client.chat.completions.create(
                 model=self.model,
                 response_format = response_format,
@@ -145,12 +150,15 @@ def top_norm_prob(logprobs, target_output=None):
 
 def timed_api_call(func, args=(), max_retries = 5):
     counter = 0
-    timeout = 5
+    timeout = 3
     while True:
         try:
             return func_timeout(timeout, func, args=args)
         except FunctionTimedOut:
             counter += 1
+            print(args)
+            raise APITimeoutError(f"Function timed out after {timeout} seconds. Retry {counter}/{max_retries}.")
+            return None, None
             if counter > max_retries:
                 print(f"Reached {counter} timeouts in a row.")
         except KeyboardInterrupt:
