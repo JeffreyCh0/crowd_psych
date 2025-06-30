@@ -51,13 +51,16 @@ def QA(question:str, choices:list, openai_client, temperature = 0, system_prompt
     if response_json is None:
         return None, None, None
     response = response_json["response"]
-    top_prob = top_norm_prob(response_logprobs, response)
+    if response != "":
+        top_prob = top_norm_prob(response_logprobs, response)
 
-    list_tokens = [x.token for x in response_logprobs]
-    target_token_idx = list_tokens.index(response)
+        list_tokens = [x.token for x in response_logprobs]
+        target_token_idx = list_tokens.index(response)
 
-    top_prob_list = [(x.token, round(np.exp(x.logprob), 4)) for x in list(response_logprobs[target_token_idx].top_logprobs)][:len(choices)]
-    return response, top_prob, top_prob_list
+        top_prob_list = [(x.token, round(np.exp(x.logprob), 4)) for x in list(response_logprobs[target_token_idx].top_logprobs)][:len(choices)]
+        return response, top_prob, top_prob_list
+    else:
+        return None, None, None
 
 def batch_multiprocess(input_list, func, num_workers, batch_size = 1000):
     batched_results = []
@@ -438,6 +441,13 @@ def process_one(args):
     # output is _one_rnd data
     input_ele, disagree_type, openai_client, llm = args
     ele = deepcopy(input_ele)
+    if ele['r^org'] is None:
+        ele['r_j'] = None
+        ele['p_r_j'] = None
+        ele['r'] = None
+        ele['p_r'] = None
+        ele['topk'] = None
+        return ele  # Return updated sample with None values
     if disagree_type == 'rnd':
         prev_topk = ele['topk^org']
         prev_r = ele['r^org']
