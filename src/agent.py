@@ -6,6 +6,7 @@ from func_timeout import func_timeout, FunctionTimedOut
 import time
 from dotenv import load_dotenv
 load_dotenv()
+from json_repair import repair_json
 
 
 available_models = {
@@ -75,36 +76,51 @@ class Agent:
                 print(input_messages)
             if self.model not in available_models['openai']+ available_models['vllm']:
                 raise ValueError("Invalid model: ", self.model)
-            print("="*50)
-            print(input_messages)
-            print("="*50)
             response_raw = self.openai_client.chat.completions.create(
                 model=self.model,
                 response_format = response_format,
                 messages=input_messages,
                 temperature=temperature,
-                max_tokens=2048,
+                max_tokens=50,
                 logprobs = logprobs,
                 top_logprobs = top_logprobs
             )
+            response_text = response_raw.choices[0].message.content
+            if response_format["type"] in ["json_object", "json_schema"]:
+                try:
+                    response_json_text = repair_json(response_text)
+                    response_json = json.loads(response_json_text)
+                except Exception as e:
+                    print(f"Invalid JSON format from OpenAI. Error: {e}.")
+                    print(response_text)
+                    return self.get_response(response_format, temperature, logprobs, debug)
+                
+                if response_format["type"] == "json_schema":
+                    target_keys = response_format["json_schema"]["schema"]["properties"].keys()
+                else:
+                    target_keys = ["response"]
+                json_sanity = json_sanity_check(response_json, keys=target_keys)
+
+                if not json_sanity:
+                    # print(response_text)
+                    # print("trimmed response:", response_json_text.strip())
+                    # print("original length:", len(response_text))
+                    # print(response_json)
+                    # print("JSON sanity check failed. Retrying...")
+                    # return self.get_response(response_format, temperature, logprobs, debug)
+                    response_json = {"response": ""}
+                
+                response_output = response_json
+            else:
+                response_output = response_text
+
 
             if logprobs:
-                response = response_raw.choices[0].message.content
                 response_logprobs = response_raw.choices[0].logprobs.content
             
-                return response, response_logprobs
+                return response_output, response_logprobs
             else: # if not logprobs
-                response = response_raw.choices[0].message.content
-                
-                if response_format["type"] in ["json_object", "json_schema"]:
-                    try:
-                        response = json.loads(response)
-                    except Exception as e:
-                        print(f"Invalid JSON format from OpenAI. Error: {e}.")
-                        print(response)
-                        return self.get_response(response_format, temperature, logprobs, debug)    
-            
-                return response
+                return response_output
         except KeyboardInterrupt:
             raise KeyboardInterrupt
         except APITimeoutError:
@@ -117,11 +133,24 @@ class Agent:
             lambda: self.get_response(response_format, temperature, logprobs, debug),
             max_retries=max_retries
         )
-        
+
+def replace_tokenizer_artifacts(text, replacements=None):
+    # Default replacements if none provided
+    if replacements is None:
+        replacements = {
+            'Ċ': '\n',   # newline
+            'Ġ': ' ',    # space before word (used in GPT-2/LLAMA)
+            'ĉ': '\t',   # tab
+        }
+    
+    for token, replacement in replacements.items():
+        text = text.replace(token, replacement)
+    
+    return text
 
 def top_norm_prob(logprobs, target_output=None):
 
-    if target_output is None:
+    if target_output is None or target_output == "":
         # Compute for all tokens if no target is specified
         list_logprobs = [single_token.logprob for single_token in logprobs]
     else:
@@ -130,7 +159,8 @@ def top_norm_prob(logprobs, target_output=None):
         accumulated_text = ""
         list_logprobs = []
         for single_token in logprobs:
-            accumulated_text += single_token.token
+            utf8_token = replace_tokenizer_artifacts(single_token.token)
+            accumulated_text += utf8_token
             list_logprobs.append(single_token.logprob)
             if accumulated_text == target_output[:len(accumulated_text)]:
                 if accumulated_text.endswith(target_output):
@@ -150,14 +180,14 @@ def top_norm_prob(logprobs, target_output=None):
 
 def timed_api_call(func, args=(), max_retries = 5):
     counter = 0
-    timeout = 3
+    timeout = 5
     while True:
         try:
             return func_timeout(timeout, func, args=args)
         except FunctionTimedOut:
             counter += 1
             print(args)
-            raise APITimeoutError(f"Function timed out after {timeout} seconds. Retry {counter}/{max_retries}.")
+            # raise APITimeoutError(f"Function timed out after {timeout} seconds. Retry {counter}/{max_retries}.")
             return None, None
             if counter > max_retries:
                 print(f"Reached {counter} timeouts in a row.")
@@ -168,3 +198,18 @@ def timed_api_call(func, args=(), max_retries = 5):
             print(f"API Error: {e}")
             time.sleep(10)
             pass
+
+def json_sanity_check(json_str, keys=["response"]):
+    """
+    Check if the JSON string is valid and can be parsed.
+    If not, attempt to repair it.
+    """
+
+    for key in keys:
+        if key not in json_str:
+            # print(f"Key '{key}' not found in JSON string.")
+            return False
+        
+    else:
+        return True
+    

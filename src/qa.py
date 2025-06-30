@@ -50,7 +50,7 @@ def QA(question:str, choices:list, openai_client, temperature = 0, system_prompt
     response_json, response_logprobs = qa_agent.get_response_timed(response_format = response_format, logprobs = True, temperature = temperature)
     if response_json is None:
         return None, None, None
-    response = json.loads(response_json)["response"]
+    response = response_json["response"]
     top_prob = top_norm_prob(response_logprobs, response)
     top_prob_list = [(x.token, round(np.exp(x.logprob), 4)) for x in list(response_logprobs[3].top_logprobs)][:len(choices)]
     return response, top_prob, top_prob_list
@@ -67,8 +67,13 @@ def batch_multiprocess(input_list, func, num_workers, batch_size = 1000):
     return results
 
 def multithreading(input_list, func, num_workers):
-    with ThreadPoolExecutor(max_workers=num_workers) as executor:
-        results = list(tqdm(executor.map(func, input_list), total=len(input_list), desc="Processing"))
+    if num_workers < 2:
+        results = []
+        for input_ele in tqdm(input_list, desc="Processing"):
+            results.append(func(input_ele))
+    else:
+        with ThreadPoolExecutor(max_workers=num_workers) as executor:
+            results = list(tqdm(executor.map(func, input_list), total=len(input_list), desc="Processing"))
     return results
 
 def generate_reason(args):
