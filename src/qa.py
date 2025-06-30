@@ -52,7 +52,11 @@ def QA(question:str, choices:list, openai_client, temperature = 0, system_prompt
         return None, None, None
     response = response_json["response"]
     top_prob = top_norm_prob(response_logprobs, response)
-    top_prob_list = [(x.token, round(np.exp(x.logprob), 4)) for x in list(response_logprobs[3].top_logprobs)][:len(choices)]
+
+    list_tokens = [x.token for x in response_logprobs]
+    target_token_idx = list_tokens.index(response)
+
+    top_prob_list = [(x.token, round(np.exp(x.logprob), 4)) for x in list(response_logprobs[target_token_idx].top_logprobs)][:len(choices)]
     return response, top_prob, top_prob_list
 
 def batch_multiprocess(input_list, func, num_workers, batch_size = 1000):
@@ -963,8 +967,9 @@ def qa_eval_org(qa_input, num_workers = mp.cpu_count(), llm = None):
     input_list = [(input_ele, openai_client, llm) for input_ele in qa_input]
     results = multithreading(input_list, process_org, num_workers)
     error_idx = [idx for idx, ele in enumerate(results) if ele['r^org'] is None]
-    print("Following samples have errors:")
-    print(error_idx)
+    if len(error_idx) > 0:
+        print("Following samples have errors:")
+        print(error_idx)
 
     return results
 
