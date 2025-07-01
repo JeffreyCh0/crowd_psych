@@ -12,7 +12,8 @@ from json_repair import repair_json
 available_models = {
     'openai' : ["gpt-4o-2024-11-20", "gpt-4o-mini-2024-07-18", "chatgpt-4o-latest",
                  "gpt-4.1-2025-04-14", "gpt-4.1-mini-2025-04-14", "gpt-4.1-nano-2025-04-14"],
-    'vllm': ["meta-llama/Llama-3.3-70B-Instruct"],
+    'vllm': ["meta-llama/Llama-3.3-70B-Instruct", "meta-llama/Llama-3.2-3B-Instruct",
+             "Qwen/Qwen2.5-72B-Instruct"],
 }
 model_to_model_id = { #['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano']
     "gpt-4o": "gpt-4o-2024-11-20",
@@ -21,7 +22,9 @@ model_to_model_id = { #['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt
     "gpt-4.1-mini": "gpt-4.1-mini-2025-04-14",
     "gpt-4.1-nano": "gpt-4.1-nano-2025-04-14",
     "chatgpt-4o": "chatgpt-4o-latest",
-    "llama-3.3-70B": "meta-llama/Llama-3.3-70B-Instruct"
+    "llama-3.3-70B": "meta-llama/Llama-3.3-70B-Instruct",
+    "llama-3.2-3B": "meta-llama/Llama-3.2-3B-Instruct",
+    "qwen-2.5-72B": "Qwen/Qwen2.5-72B-Instruct",
 }
 
 def create_openai_client(llm):
@@ -148,7 +151,7 @@ def replace_tokenizer_artifacts(text, replacements=None):
     
     return text
 
-def top_norm_prob(logprobs, target_output=None):
+def get_top_norm_prob(logprobs, target_output):
 
     if target_output is None or target_output == "":
         # Compute for all tokens if no target is specified
@@ -158,7 +161,7 @@ def top_norm_prob(logprobs, target_output=None):
         matched = False
         accumulated_text = ""
         list_logprobs = []
-        for single_token in logprobs:
+        for token_index, single_token in enumerate(logprobs):
             utf8_token = replace_tokenizer_artifacts(single_token.token)
             accumulated_text += utf8_token
             list_logprobs.append(single_token.logprob)
@@ -171,22 +174,35 @@ def top_norm_prob(logprobs, target_output=None):
                 list_logprobs = []
 
         if not matched:
-            raise ValueError(f"Target output not found in logprobs: {target_output}")
+            return None, None
+            # raise ValueError(f"Target output not found in logprobs: {target_output}")
 
     # Compute length-normalized log probability
     norm_logprobs = np.mean(list_logprobs)
     norm_probs = np.exp(norm_logprobs)  # Convert log probability back to probability
-    return norm_probs
+    return norm_probs, token_index
+
+def top_norm_prob(logprobs, target_output=None):
+    norm_probs, token_index = get_top_norm_prob(logprobs, target_output)
+    if norm_probs is None:
+        norm_probs, token_index = get_top_norm_prob(logprobs, '"'+target_output)
+    if norm_probs is None:
+        norm_probs, token_index = get_top_norm_prob(logprobs, target_output='"')
+    if norm_probs is None:
+        raise ValueError(f"Target output {target_output} not found in logprobs: {[single_token.token for single_token in logprobs]}")
+    
+    return norm_probs, token_index
+        
 
 def timed_api_call(func, args=(), max_retries = 5):
     counter = 0
-    timeout = 5
+    timeout = 10
     while True:
         try:
             return func_timeout(timeout, func, args=args)
         except FunctionTimedOut:
             counter += 1
-            print(args)
+            print(f"timeout: {args}")
             # raise APITimeoutError(f"Function timed out after {timeout} seconds. Retry {counter}/{max_retries}.")
             return None, None
             if counter > max_retries:

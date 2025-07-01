@@ -25,6 +25,7 @@ def QA(question:str, choices:list, openai_client, temperature = 0, system_prompt
     str_choices = "\n".join([f"{alpha[idx]}. {choice}" for idx, choice in str_choices])
     if system_prompt:
         qa_agent.load_system_message(system_prompt)
+    question = question + '\nRespond in JSON: {"response": <option>}. You have to choose one of the following options:'
     qa_agent.load_message([{"role": "user", "content": f"# Question: \n{question}\n# Choices: \n{str_choices}"}])
     response_format={
         "type": "json_schema",
@@ -51,16 +52,13 @@ def QA(question:str, choices:list, openai_client, temperature = 0, system_prompt
     if response_json is None:
         return None, None, None
     response = response_json["response"]
-    if response != "":
-        top_prob = top_norm_prob(response_logprobs, response)
 
-        list_tokens = [x.token for x in response_logprobs]
-        target_token_idx = list_tokens.index(response)
-
+    if response == "":
+        return None, None, None
+    else:
+        top_prob, target_token_idx = top_norm_prob(response_logprobs, response)
         top_prob_list = [(x.token, round(np.exp(x.logprob), 4)) for x in list(response_logprobs[target_token_idx].top_logprobs)][:len(choices)]
         return response, top_prob, top_prob_list
-    else:
-        return None, None, None
 
 def batch_multiprocess(input_list, func, num_workers, batch_size = 1000):
     batched_results = []
