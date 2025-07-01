@@ -13,7 +13,8 @@ available_models = {
     'openai' : ["gpt-4o-2024-11-20", "gpt-4o-mini-2024-07-18", "chatgpt-4o-latest",
                  "gpt-4.1-2025-04-14", "gpt-4.1-mini-2025-04-14", "gpt-4.1-nano-2025-04-14"],
     'vllm': ["meta-llama/Llama-3.3-70B-Instruct", "meta-llama/Llama-3.2-3B-Instruct",
-             "Qwen/Qwen2.5-72B-Instruct"],
+             "Qwen/Qwen2.5-72B-Instruct", "Qwen/Qwen3-32B", "Qwen/Qwen3-14B",
+             "Qwen/Qwen3-8B"],
 }
 model_to_model_id = { #['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt-4.1-nano']
     "gpt-4o": "gpt-4o-2024-11-20",
@@ -25,6 +26,9 @@ model_to_model_id = { #['gpt-4o', 'gpt-4o-mini', 'gpt-4.1', 'gpt-4.1-mini', 'gpt
     "llama-3.3-70B": "meta-llama/Llama-3.3-70B-Instruct",
     "llama-3.2-3B": "meta-llama/Llama-3.2-3B-Instruct",
     "qwen-2.5-72B": "Qwen/Qwen2.5-72B-Instruct",
+    "qwen-3-32B": "Qwen/Qwen3-32B",
+    "qwen-3-14B": "Qwen/Qwen3-14B",
+    "qwen-3-8B": "Qwen/Qwen3-8B",
 }
 
 def create_openai_client(llm):
